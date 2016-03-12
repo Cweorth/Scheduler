@@ -142,7 +142,7 @@ public class TimeSlotSwapInCommission implements NeighbourSelection<Slot, Ticket
             return null;
         }
 
-        logger.debug("found a better timeslot :)");
+        logger.debug("found a better timeslot");
 
         //LazySwap lazySwap = new LazySwap(assignment.getValue(fst), assignment.getValue(snd));
         //lazySwap.setAcceptanceCriterion((a, n, v) -> { logger.info("called criterion"); return true; } );
