@@ -17,6 +17,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.cpsolver.ifs.assignment.Assignment;
 
+/**
+ * Represents a single commission and its exams on a specific day.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class EntryRow {
     private static long ID_SEQ = 0L;
 

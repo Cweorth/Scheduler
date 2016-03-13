@@ -16,6 +16,19 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.log4j.Logger;
 
+/**
+ * Implementation of {@link DataSource} that provides data from a directory.
+ *
+ * The directory should contain the following files:
+ * <pre>
+ *   |-- students.csv
+ *   |-- teachers.csv
+ *   |-- fields.csv
+ *   \-- theses.csv
+ * </pre>
+ *
+ * @author cweorth
+ */
 public class DirectoryDataSource implements DataSource, AutoCloseable {
 
     private static final Logger logger = Logger.getLogger("DirectoryDataSource");

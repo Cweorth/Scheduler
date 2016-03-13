@@ -8,6 +8,12 @@ import org.cpsolver.ifs.solution.Solution;
 import org.cpsolver.ifs.termination.TerminationCondition;
 import org.cpsolver.ifs.util.DataProperties;
 
+/**
+ * Terminates the search after a number of iterations without finding a better
+ * solution.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class ImprovementTerminalCondition implements TerminationCondition<Slot, Ticket> {
     private static final Logger logger = Logger.getLogger("ImprovementTerminalCondition");
 

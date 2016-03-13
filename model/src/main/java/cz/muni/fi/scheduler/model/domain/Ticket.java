@@ -7,6 +7,13 @@ import cz.muni.fi.scheduler.extensions.ValueCheck;
 import org.cpsolver.ifs.assignment.Assignment;
 import org.cpsolver.ifs.model.Value;
 
+/**
+ * Represents the model value.
+ *
+ * The ticket holds a {@link Person} that is assigned to a variable {@link Slot}.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class Ticket extends Value<Slot, Ticket> {
     private final Person  person;
     private final boolean hasTimeSlot;

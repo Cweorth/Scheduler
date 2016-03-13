@@ -7,6 +7,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Model configuration class.
+ *
+ * The implementation may (and probably will) change in the future.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class Configuration {
     public final int                fullExamLength;
     public final int                shortExamLength;

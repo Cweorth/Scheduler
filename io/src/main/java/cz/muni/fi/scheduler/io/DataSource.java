@@ -7,6 +7,12 @@ import cz.muni.fi.scheduler.data.Thesis;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Interface for various data sources.
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ *
+ * This is a stub class and may change in the future.
+ */
 public interface DataSource extends AutoCloseable {
     public Map<Long, Field> getFields() throws IOException;
     public Map<Long, Thesis> getTheses() throws IOException;

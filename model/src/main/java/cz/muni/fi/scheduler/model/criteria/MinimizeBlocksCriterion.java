@@ -14,6 +14,14 @@ import org.apache.log4j.Logger;
 import org.cpsolver.ifs.assignment.Assignment;
 import org.cpsolver.ifs.criteria.AbstractCriterion;
 
+/**
+ * Penalizes the solution for each block.
+ *
+ * The goal of this criterion is to minimize the number of blocks
+ * each teacher must come to.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class MinimizeBlocksCriterion extends AbstractCriterion<Slot, Ticket> {
     private final static Logger logger = Logger.getLogger("MinimizeBlocksCriterion");
 

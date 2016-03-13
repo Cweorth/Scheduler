@@ -9,6 +9,7 @@ import org.cpsolver.ifs.solution.Solution;
 import org.cpsolver.ifs.solver.Solver;
 import org.cpsolver.ifs.util.DataProperties;
 
+@Deprecated
 public class DummySwap implements NeighbourSelection<Slot, Ticket> {
     private static final Logger logger = Logger.getLogger("DummySwap");
 

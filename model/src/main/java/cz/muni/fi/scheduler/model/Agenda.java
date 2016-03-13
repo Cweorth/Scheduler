@@ -15,6 +15,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
 
+/**
+ * The Agenda records information about the current solution.
+ *
+ * For instance, it holds information about teacher's blocks.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class Agenda {
     private final Configuration             config;
     private final Map<Person, EntityData>   people;

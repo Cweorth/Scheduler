@@ -7,6 +7,11 @@ import cz.muni.fi.scheduler.utils.Pair;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Not used yet.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class EntityData {
     private final Person person;
 

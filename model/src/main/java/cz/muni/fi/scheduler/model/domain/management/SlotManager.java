@@ -14,6 +14,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+/**
+ * Holds information about existing slots.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class SlotManager {
     private final Agenda agenda;
     private final Map<Student, Set<TimeSlot>>   students;

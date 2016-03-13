@@ -22,6 +22,14 @@ import org.cpsolver.ifs.solver.Solver;
 import org.cpsolver.ifs.util.DataProperties;
 import org.cpsolver.ifs.util.ToolBox;
 
+/**
+ * Experimental local change that swaps defenses in a single commission.
+ *
+ * The algorithm tries to swap a random teacher in a way that decreases the number
+ * of blocks for the given teacher.
+ *
+ * @author cweorth
+ */
 public class TimeSlotSwapInCommission implements NeighbourSelection<Slot, Ticket> {
     private static final Logger logger = Logger.getLogger("TimeSlotSwapInCommission");
 

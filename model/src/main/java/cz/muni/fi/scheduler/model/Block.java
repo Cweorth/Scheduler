@@ -13,6 +13,11 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+/**
+ * The class represents a single block of TimeSlots.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class Block implements Comparable<Block> {
     private final int      day;
     private final TimeSlot first;

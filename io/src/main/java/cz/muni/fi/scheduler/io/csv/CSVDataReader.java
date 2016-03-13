@@ -28,6 +28,13 @@ import org.supercsv.cellprocessor.ift.CellProcessor;
 import org.supercsv.cellprocessor.ift.LongCellProcessor;
 import org.supercsv.util.CsvContext;
 
+/**
+ * Helper class for {@link cz.muni.fi.scheduler.io.DataSource} implementations.
+ *
+ * This class reads lists of entities from CSV files specified as input streams.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class CSVDataReader {
 
     private static final Logger logger = Logger.getLogger("CSVDataReader");

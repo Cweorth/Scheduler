@@ -4,11 +4,15 @@ import static cz.muni.fi.scheduler.extensions.ValueCheck.*;
 
 import java.util.Comparator;
 
+/**
+ * Compares to {@link TimeSlot} instances lexicographically by their
+ * starting and ending time.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class TimeSlotComparator implements Comparator<TimeSlot> {
-
-    private TimeSlotComparator() {
-        // hue hue hue
-    }
+    //private TimeSlotComparator()
+    //{ }
 
     public static final TimeSlotComparator INSTANCE;
 

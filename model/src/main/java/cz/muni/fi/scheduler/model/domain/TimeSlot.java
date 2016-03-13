@@ -7,6 +7,11 @@ import cz.muni.fi.scheduler.model.domain.management.SlotManager;
 import cz.muni.fi.scheduler.model.domain.management.TimeSlotListener;
 import java.util.Collection;
 
+/**
+ * A variable for exams.
+ *
+ * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
+ */
 public class TimeSlot extends Slot {
     private final int start;
     private final int end;
