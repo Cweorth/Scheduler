@@ -46,10 +46,6 @@ public class MinimizeBlocksCriterion extends AbstractCriterion<Slot, Ticket> {
                 .mapToInt(teacher -> agenda.analyzeTimeSlot(teacher, (TimeSlot) value.variable()))
                 .sum();
 
-        //if (diffblocks > 0) {
-        //    logger.debug("found diffblocks of " + diffblocks + "; my weight is " + iWeight);
-        //}
-
         return diffblocks;
     }
 

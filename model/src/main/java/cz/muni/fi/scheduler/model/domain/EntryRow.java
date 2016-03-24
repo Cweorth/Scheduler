@@ -40,6 +40,10 @@ public class EntryRow {
         this.mngr   = requireNonNull(manager, "manager");
         this.day    = requireNonNegative(day, "day");
 
+        if (day >= config.dates.size()) {
+            throw new IllegalArgumentException("Row day has no date configured.");
+        }
+
         chairman  = new MemberSlot(this, mngr);
         members   = Stream.generate(() -> new MemberSlot(this, mngr)).limit(2).collect(Collectors.toList());
         timeslots = new LinkedList<>(Arrays.asList(new TimeSlot(0, config.fullExamLength, this, manager)));

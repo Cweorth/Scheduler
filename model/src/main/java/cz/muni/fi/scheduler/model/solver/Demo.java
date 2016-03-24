@@ -7,6 +7,7 @@ import cz.muni.fi.scheduler.data.Thesis;
 import cz.muni.fi.scheduler.io.DataSource;
 import cz.muni.fi.scheduler.io.DirectoryDataSource;
 import cz.muni.fi.scheduler.model.Agenda;
+import cz.muni.fi.scheduler.model.Block;
 import cz.muni.fi.scheduler.model.Configuration;
 import cz.muni.fi.scheduler.model.constraints.UniqueCommissionMembersConstraint;
 import cz.muni.fi.scheduler.model.constraints.UniqueStudentTicketConstraint;
@@ -22,6 +23,7 @@ import java.time.LocalTime;
 import java.time.Month;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.log4j.Logger;
 import org.cpsolver.ifs.assignment.Assignment;
@@ -183,12 +185,28 @@ public class Demo {
                 System.err.println(ex);
             }
 
-            Solution lastSolution = solver.lastSolution();
+            Solution lastSolution = solver.lastSolution();          
             lastSolution.restoreBest();
             printRows(rows, lastSolution.getAssignment(), cfg);
             //logger.info("Last solution:" + ToolBox.dict2string(solver.currentSolution().getInfo(), 2));
             logger.info("Best solution:" + ToolBox.dict2string(solver.currentSolution().getBestInfo(), 2));
-
+            
+            logger.info("=========================================");
+            logger.info("Block counts for the current solution");
+            Solution dump = solver.lastSolution();
+            logger.info(ToolBox.dict2string(dump.getInfo(), 2));
+            
+            for (Teacher t : ds.getTeachers().values()) {
+                logger.info(t.getSurname() + ": " + agenda.blockCount(t));
+                
+                Map<Integer, List<Block>> data = agenda.getBlocks(t);
+                data.entrySet().stream()
+                        .forEach(kv -> {
+                            System.out.println(kv.getKey() + ":");
+                            kv.getValue().stream()
+                                    .forEach(block -> System.out.println("    " + block.getInterval()));
+                        });
+            }
         }
     }
 }

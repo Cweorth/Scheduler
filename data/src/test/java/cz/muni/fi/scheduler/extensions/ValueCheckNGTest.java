@@ -1,6 +1,5 @@
 package cz.muni.fi.scheduler.extensions;
 
-import cz.muni.fi.scheduler.extensions.ValueCheck;
 import static org.testng.Assert.*;
 import org.testng.annotations.*;
 
@@ -10,7 +9,7 @@ import org.testng.annotations.*;
 public class ValueCheckNGTest {
 
     @Test
-    public void requireNonNegativeIntTest() {
+    public void testRequireNonNegativeInt() {
         for (int i = -10; i <= 10; ++i) {
             try {
                 assertEquals(ValueCheck.requireNonNegative(i, String.valueOf(i)), i);
@@ -23,7 +22,7 @@ public class ValueCheckNGTest {
     }
 
     @Test
-    public void testRequireNonNegativeLongTest() {
+    public void testRequireNonNegativeLong() {
         for (long i = -10L; i <= 10L; ++i) {
             try {
                 assertEquals(ValueCheck.requireNonNegative(i, String.valueOf(i)), i);
@@ -36,7 +35,7 @@ public class ValueCheckNGTest {
     }
 
     @Test
-    public void requirePositiveIntTest() {
+    public void testRequirePositiveInt() {
         for (int i = -10; i <= 10; ++i) {
             try {
                 assertEquals(ValueCheck.requirePositive(i, String.valueOf(i)), i);
@@ -49,7 +48,7 @@ public class ValueCheckNGTest {
     }
 
     @Test
-    public void testRequirePositiveLongTest() {
+    public void testRequirePositiveLong() {
         for (long i = -10L; i <= 10L; ++i) {
             try {
                 assertEquals(ValueCheck.requirePositive(i, String.valueOf(i)), i);

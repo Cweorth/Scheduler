@@ -105,6 +105,17 @@ public class Agenda {
         return count - 1;
     }
 
+    public Map<Integer, List<Block>> getBlocks(Teacher teacher) {
+        Map<Integer, List<Block>> blocks = new HashMap<>();
+        
+        timeBlocks.entrySet().stream()
+                .filter(entry -> entry.getKey().first().equals(teacher))
+                .map(entry -> Pair.of(entry.getKey().second(), entry.getValue()))
+                .forEach(p -> blocks.put(p.first(), p.second()));
+        
+        return blocks;
+    }
+    
     public int blockCount(Teacher teacher) {
         int count = 0;
 

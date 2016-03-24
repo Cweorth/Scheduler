@@ -4,6 +4,7 @@ import static cz.muni.fi.scheduler.extensions.ValueCheck.*;
 
 import cz.muni.fi.scheduler.model.domain.TimeSlot;
 import cz.muni.fi.scheduler.model.domain.TimeSlotComparator;
+import cz.muni.fi.scheduler.utils.Range;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -19,9 +20,10 @@ import java.util.TreeSet;
  * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
  */
 public class Block implements Comparable<Block> {
-    private final int      day;
-    private final TimeSlot first;
-    private final TimeSlot last;
+    private final int   day;
+    private final TimeSlot  first;
+    private final TimeSlot  last;
+    private final Range<Integer>    interval;
 
     private final SortedSet<TimeSlot> slots;
 
@@ -31,6 +33,8 @@ public class Block implements Comparable<Block> {
         this.first = first;
         this.last  = last;
         this.slots = slots;
+        
+        this.interval = new Range<>(first.getStart(), last.getEnd());
     }
 
     private static SortedSet<TimeSlot> singleton(TimeSlot slot) {
@@ -44,12 +48,9 @@ public class Block implements Comparable<Block> {
     }
 
     public boolean canJoin(Block other) {
-        requireNonNull(other, "block");
+        requireNonNull(other, "other");
 
-        return  (day == other.getDay())
-            && (   (last.getEnd() >= other.getFirst().getStart())
-                || (last.getEnd() >= other.getFirst().getStart()));
-
+        return (day == other.getDay()) && (interval.overlaps(other.interval));
     }
 
     public Block join(Block other) {
@@ -57,14 +58,14 @@ public class Block implements Comparable<Block> {
             throw new IllegalArgumentException("Cannot join these blocks.");
         }
 
-        TimeSlot nfirst = first.getStart() <= other.first.getStart()
+        TimeSlot newFirst = interval.contains(other.interval.getMin())
                 ? first : other.first;
-        TimeSlot nlast  = other.last.getEnd() >= last.getEnd()
-                ? other.last : last;
+        TimeSlot newLast  = interval.contains(other.interval.getMax())
+                ? last  : other.last;
 
         SortedSet<TimeSlot> nslots = new TreeSet<>(slots);
         nslots.addAll(other.slots);
-        return new Block(nfirst, nlast, nslots);
+        return new Block(newFirst, newLast, nslots);
     }
 
     public List<Block> split(TimeSlot slot) {
@@ -107,8 +108,9 @@ public class Block implements Comparable<Block> {
     public TimeSlot getFirst() { return first; }
     public TimeSlot getLast()  { return last;  }
 
-    public Set<TimeSlot> getSlots() { return Collections.unmodifiableSet(slots); }
-
+    public Set<TimeSlot>  getSlots()    { return Collections.unmodifiableSet(slots); }
+    public Range<Integer> getInterval() { return interval; }
+    
     @Override
     public int compareTo(Block other) {
         requireNonNull(other, "other");

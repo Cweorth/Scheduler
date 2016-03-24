@@ -20,12 +20,14 @@ public class ImprovementTerminalCondition implements TerminationCondition<Slot, 
     private final int   maxIterations;
     private int         counter;
     private double      bestSolution;
+    private double      bestIncomplete;
 
     public ImprovementTerminalCondition(DataProperties properties) {
         maxIterations = properties.getPropertyInt("ImprovementTerminalCondition.maxIterations", 5000);
 
-        counter      = 0;
-        bestSolution = Double.MIN_VALUE;
+        counter        = 0;
+        bestSolution   = Double.MAX_VALUE;
+        bestIncomplete = Double.MAX_VALUE;
         logger.debug("initialized");
     }
 
@@ -38,14 +40,17 @@ public class ImprovementTerminalCondition implements TerminationCondition<Slot, 
 
         ++counter;
 
-        if (currentSolution.isComplete()) {
-            double value = currentSolution.getModel().getTotalValue(currentSolution.getAssignment());
+        double value = currentSolution.getModel().getTotalValue(currentSolution.getAssignment());
 
-            if (value < bestSolution) {
-                logger.info("found the best solution (so far) with value of " + String.valueOf(value));
-                bestSolution = value;
-                counter = 0;
-            }
+        if (value < bestIncomplete) {
+            logger.info("new best incomplete score of " + String.valueOf(value));
+            bestIncomplete = value;
+        }
+
+        if (currentSolution.isComplete() && (value < bestSolution)) {
+            logger.info("new best complete score of " + String.valueOf(value));
+            bestSolution = value;
+            counter = 0;
         }
 
         return true;
