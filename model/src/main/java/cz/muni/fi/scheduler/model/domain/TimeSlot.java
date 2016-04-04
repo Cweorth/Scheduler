@@ -3,8 +3,7 @@ package cz.muni.fi.scheduler.model.domain;
 import static cz.muni.fi.scheduler.extensions.ValueCheck.*;
 
 import cz.muni.fi.scheduler.data.Student;
-import cz.muni.fi.scheduler.model.domain.management.SlotManager;
-import cz.muni.fi.scheduler.model.domain.management.TimeSlotListener;
+import cz.muni.fi.scheduler.utils.Range;
 import java.util.Collection;
 
 /**
@@ -17,13 +16,11 @@ public class TimeSlot extends Slot {
     private final int end;
     private final int length;
 
-    public TimeSlot(int start, int length, EntryRow parent, SlotManager manager) {
-        super(parent, manager);
+    public TimeSlot(int start, int length, EntryRow parent) {
+        super(parent);
         this.start  = start;
         this.end    = start + length;
         this.length = requirePositive(length, "length");
-
-        addVariableListener(new TimeSlotListener(this, manager));
     }
 
     //<editor-fold defaultstate="collapsed" desc="[  Getters  ]">
@@ -31,6 +28,8 @@ public class TimeSlot extends Slot {
     public int getStart()  { return start;  }
     public int getEnd()    { return end;    }
     public int getLength() { return length; }
+
+    public Range<Integer> getRange() { return new Range<>(start, end); }
 
     //</editor-fold>
 

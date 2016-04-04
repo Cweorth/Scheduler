@@ -5,7 +5,6 @@ import static cz.muni.fi.scheduler.extensions.ValueCheck.*;
 import cz.muni.fi.scheduler.data.Commission;
 import cz.muni.fi.scheduler.data.Teacher;
 import cz.muni.fi.scheduler.model.Configuration;
-import cz.muni.fi.scheduler.model.domain.management.SlotManager;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -28,25 +27,23 @@ public class EntryRow {
     private final long id = ID_SEQ++;
 
     private final Configuration    config;
-    private final SlotManager      mngr;
 
     private final int              day;
     private final MemberSlot       chairman;
     private final List<MemberSlot> members;
     private final List<TimeSlot>   timeslots;
 
-    public EntryRow(int day, SlotManager manager, Configuration config) {
+    public EntryRow(int day, Configuration config) {
         this.config = requireNonNull(config,  "config");
-        this.mngr   = requireNonNull(manager, "manager");
         this.day    = requireNonNegative(day, "day");
 
         if (day >= config.dates.size()) {
             throw new IllegalArgumentException("Row day has no date configured.");
         }
 
-        chairman  = new MemberSlot(this, mngr);
-        members   = Stream.generate(() -> new MemberSlot(this, mngr)).limit(2).collect(Collectors.toList());
-        timeslots = new LinkedList<>(Arrays.asList(new TimeSlot(0, config.fullExamLength, this, manager)));
+        chairman  = new MemberSlot(this);
+        members   = Stream.generate(() -> new MemberSlot(this)).limit(2).collect(Collectors.toList());
+        timeslots = new LinkedList<>(Arrays.asList(new TimeSlot(0, config.fullExamLength, this)));
     }
 
     public long getId()    { return id;  }
@@ -98,10 +95,10 @@ public class EntryRow {
 
     public void extendBack() {
         if (timeslots.isEmpty()) {
-            timeslots.add(new TimeSlot(0, config.fullExamLength, this, mngr));
+            timeslots.add(new TimeSlot(0, config.fullExamLength, this));
         } else {
             final TimeSlot last = timeslots.get(timeslots.size() - 1);
-            timeslots.add(new TimeSlot(last.getEnd(), last.getLength(), this, mngr));
+            timeslots.add(new TimeSlot(last.getEnd(), last.getLength(), this));
         }
     }
 

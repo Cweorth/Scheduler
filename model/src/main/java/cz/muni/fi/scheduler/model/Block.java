@@ -6,6 +6,7 @@ import cz.muni.fi.scheduler.model.domain.TimeSlot;
 import cz.muni.fi.scheduler.model.domain.TimeSlotComparator;
 import cz.muni.fi.scheduler.utils.Range;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -27,13 +28,29 @@ public class Block implements Comparable<Block> {
 
     private final SortedSet<TimeSlot> slots;
 
+    private int memBlockMap[];
+
+    private void createBlockMap() {
+        if (memBlockMap != null)
+            return;
+
+        memBlockMap = new int[last.getEnd() - first.getStart()];
+
+        int shift = first.getStart();
+        slots.stream().forEach((slot) -> {
+            for (int i = slot.getStart(); i < slot.getEnd(); ++i) {
+                ++memBlockMap[i - shift];
+            }
+        });
+    }
+
     private Block(TimeSlot first, TimeSlot last, SortedSet<TimeSlot> slots) {
         this.day = first.getParent().getDay();
 
         this.first = first;
         this.last  = last;
         this.slots = slots;
-        
+
         this.interval = new Range<>(first.getStart(), last.getEnd());
     }
 
@@ -104,13 +121,34 @@ public class Block implements Comparable<Block> {
         return (slot != null) && slots.contains(slot);
     }
 
+    public int splitFactor(TimeSlot slot) {
+        requireNonNull(slot, "slot");
+
+        createBlockMap();
+        int tmpMap[] = Arrays.copyOf(memBlockMap, memBlockMap.length);
+
+        int shift = first.getStart();
+
+        for (int i = slot.getStart(); i < slot.getEnd(); ++i) {
+            --tmpMap[i - shift];
+        }
+
+        int counter = 0;
+        for (int i = 0; i < tmpMap.length; ++i) {
+            if (tmpMap[i] != 0 && (i == 0 || tmpMap[i - 1] == 0))
+                ++counter;
+        }
+
+        return counter;
+    }
+
     public int      getDay()   { return day;   }
     public TimeSlot getFirst() { return first; }
     public TimeSlot getLast()  { return last;  }
 
     public Set<TimeSlot>  getSlots()    { return Collections.unmodifiableSet(slots); }
     public Range<Integer> getInterval() { return interval; }
-    
+
     @Override
     public int compareTo(Block other) {
         requireNonNull(other, "other");

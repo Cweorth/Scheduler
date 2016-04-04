@@ -2,12 +2,9 @@ package cz.muni.fi.scheduler.model;
 
 import cz.muni.fi.scheduler.model.domain.EntryRow;
 import cz.muni.fi.scheduler.model.domain.TimeSlot;
-import cz.muni.fi.scheduler.model.domain.management.SlotManager;
-import cz.muni.fi.scheduler.utils.Range;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.*;
@@ -19,7 +16,6 @@ public class BlockNGTest {
     private static List<TimeSlot> timeSlots;
     private static List<Block>    blocks;
     private static EntryRow       row;
-    private static SlotManager    mngr;
 
     @BeforeClass
     public static void setUp() {
@@ -28,10 +24,8 @@ public class BlockNGTest {
         when(row.getStart()).thenReturn(0);
         when(row.getEnd()).thenReturn(5);
 
-        mngr = mock(SlotManager.class);
-
         for (int i = 0; i < 5; ++i) {
-            timeSlots.add(new TimeSlot(i, 1, row, mngr));
+            timeSlots.add(new TimeSlot(i, 1, row));
         }
 
         blocks = timeSlots.stream().map(Block::new).collect(Collectors.toList());
@@ -59,9 +53,9 @@ public class BlockNGTest {
         EntryRow row2 = mock(EntryRow.class);
         when(row2.getDay()).thenReturn(2);
 
-        Block b1 = new Block(new TimeSlot(10, 2, row1, mngr));
-        Block b2 = new Block(new TimeSlot(12, 2, row1, mngr));
-        Block b3 = new Block(new TimeSlot(12, 2, row2, mngr));
+        Block b1 = new Block(new TimeSlot(10, 2, row1));
+        Block b2 = new Block(new TimeSlot(12, 2, row1));
+        Block b3 = new Block(new TimeSlot(12, 2, row2));
 
         assertTrue(b1.canJoin(b2));
         assertFalse(b1.canJoin(b3));
@@ -128,15 +122,15 @@ public class BlockNGTest {
         // | B0 | B2      | B4 |
 
         List<Block> bxs = Arrays.asList(
-                new Block(new TimeSlot(0, 1, row, mngr)),
-                new Block(new TimeSlot(0, 2, row, mngr)),
-                new Block(new TimeSlot(1, 2, row, mngr)),
-                new Block(new TimeSlot(2, 2, row, mngr)),
-                new Block(new TimeSlot(3, 1, row, mngr))
+                new Block(new TimeSlot(0, 1, row)),
+                new Block(new TimeSlot(0, 2, row)),
+                new Block(new TimeSlot(1, 2, row)),
+                new Block(new TimeSlot(2, 2, row)),
+                new Block(new TimeSlot(3, 1, row))
         );
 
         Block superblock = bxs.stream().reduce((a, b) -> a.join(b)).get();
-        List<Block> split = superblock.split(new TimeSlot(1, 2, row, mngr));
+        List<Block> split = superblock.split(new TimeSlot(1, 2, row));
 
         assertEquals(split.size(), 1);
         Block nb = split.get(0);
@@ -148,6 +142,6 @@ public class BlockNGTest {
     public void testSplitInvalid() {
         Block superblock = blocks.stream().reduce((a,b) -> a.join(b)).get();
 
-        superblock.split(new TimeSlot(3, 8, row, mngr));
+        superblock.split(new TimeSlot(3, 8, row));
     }
 }

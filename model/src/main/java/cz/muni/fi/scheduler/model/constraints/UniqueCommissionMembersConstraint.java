@@ -1,13 +1,15 @@
 package cz.muni.fi.scheduler.model.constraints;
 
 import cz.muni.fi.scheduler.data.Teacher;
-import cz.muni.fi.scheduler.extensions.ValueCheck;
+import cz.muni.fi.scheduler.model.SchModel;
+import cz.muni.fi.scheduler.model.context.SchModelContext;
 import cz.muni.fi.scheduler.model.domain.Slot;
 import cz.muni.fi.scheduler.model.domain.Ticket;
-import cz.muni.fi.scheduler.model.domain.management.SlotManager;
 import java.util.Set;
+import org.apache.log4j.Logger;
 import org.cpsolver.ifs.assignment.Assignment;
 import org.cpsolver.ifs.model.GlobalConstraint;
+import org.cpsolver.ifs.model.Model;
 
 /**
  * The constraint that makes sure each commission contains unique teachers.
@@ -15,20 +17,28 @@ import org.cpsolver.ifs.model.GlobalConstraint;
  * @author Roman Lacko &lt;<a href="mailto:xlacko1@fi.muni.cz">xlacko1@fi.muni.cz</a>&gt;
  */
 public class UniqueCommissionMembersConstraint extends GlobalConstraint<Slot, Ticket> {
-    private final SlotManager mngr;
+    private static final Logger logger = Logger.getLogger(UniqueCommissionMembersConstraint.class);
 
-    public UniqueCommissionMembersConstraint(SlotManager manager) {
-        this.mngr = ValueCheck.requireNonNull(manager, "manager");
+    private SchModelContext getContext(Assignment<Slot, Ticket> assignment) {
+        final SchModel schModel = (SchModel) getModel();
+        return schModel.getContext(assignment);
+    }
+
+    @Override
+    public void setModel(Model model) {
+        if (!(model instanceof SchModel))
+            throw new IllegalArgumentException("Model is not SchModel");
+        super.setModel(model);
     }
 
     @Override
     public void computeConflicts(Assignment<Slot, Ticket> assignment, Ticket value, Set<Ticket> conflicts) {
-        if (!(value.getPerson() instanceof Teacher))
+        if (value.isTimeSlotTicket())
             return;
 
-        mngr.memberSlots(value)
+        getContext(assignment).memberSlots(value)
+                .filter(slot -> slot.getParent().getDay() == value.variable().getParent().getDay())
                 .map(assignment::getValue)
                 .forEach(conflicts::add);
     }
-
 }

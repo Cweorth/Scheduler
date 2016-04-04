@@ -9,25 +9,32 @@ import cz.muni.fi.scheduler.io.DirectoryDataSource;
 import cz.muni.fi.scheduler.model.Agenda;
 import cz.muni.fi.scheduler.model.Block;
 import cz.muni.fi.scheduler.model.Configuration;
+import cz.muni.fi.scheduler.model.SchModel;
+import cz.muni.fi.scheduler.model.constraints.DefenceTeacherOverlapConstraint;
 import cz.muni.fi.scheduler.model.constraints.UniqueCommissionMembersConstraint;
 import cz.muni.fi.scheduler.model.constraints.UniqueStudentTicketConstraint;
+import cz.muni.fi.scheduler.model.criteria.BlockCriterion;
 import cz.muni.fi.scheduler.model.criteria.MinimizeBlocksCriterion;
 import cz.muni.fi.scheduler.model.domain.EntryRow;
 import cz.muni.fi.scheduler.model.domain.Slot;
 import cz.muni.fi.scheduler.model.domain.Ticket;
-import cz.muni.fi.scheduler.model.domain.management.SlotManager;
+import cz.muni.fi.scheduler.utils.Range;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Month;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.log4j.Logger;
 import org.cpsolver.ifs.assignment.Assignment;
-import org.cpsolver.ifs.model.Model;
 import org.cpsolver.ifs.solution.Solution;
 import org.cpsolver.ifs.solver.Solver;
 import org.cpsolver.ifs.util.DataProperties;
@@ -37,32 +44,15 @@ public class Demo {
     private static final Logger logger = Logger.getLogger("Demo");
 
     private static DataProperties getProperties() {
-        DataProperties prop = new DataProperties();
-
-        prop.setProperty("General.SaveBestUnassigned", "-1");
-        prop.setProperty("Neighbour.Class", "org.cpsolver.ifs.algorithms.SimulatedAnnealing");
-
-        prop.setProperty("Termination.Class",       "cz.muni.fi.scheduler.model.ImprovementTerminalCondition");
-        prop.setProperty("Termination.MaxIters",    "500000");
-
-        prop.setProperty("Weight.MinimizeBlocksCriterion", "1.0");
-
-        prop.setProperty("Extensions.Classes", "org.cpsolver.ifs.extension.ConflictStatistics");
-
-        prop.setProperty("SimulatedAnnealing.Neighbours",
-                String.join(";",
-                        "org.cpsolver.ifs.heuristics.StandardNeighbourSelection",
-                        "cz.muni.fi.scheduler.model.neighbourhood.TimeSlotSwapInCommission@0.1"
-                )
-        );
-
-        return prop;
+        return ToolBox.loadProperties(new File("model.properties"));
     }
 
     public static void printRows(List<EntryRow> rows, Assignment<Slot, Ticket> sol, Configuration cfg) {
+        DateTimeFormatter datefmt = DateTimeFormatter.ofPattern("HH:mm");
+
         System.out.println("SOLUTION: ");
-        for (EntryRow row : rows) {
-            System.out.println("-- ENTRY ROW " + row.getId());
+        rows.stream().sorted((a,b) -> a.getDay() - b.getDay()).forEach(row -> {
+            System.out.println("-- ENTRY ROW " + row.getId() + " (DAY " + row.getDay() + ")");
 
             Commission commission = row.getCommission(sol, cfg);
             System.out.print("Commission: " +
@@ -73,9 +63,9 @@ public class Demo {
                     );
 
             System.out.println("\n-- SCHEDULE");
-            System.out.printf("%7.7s | %10.10s | %10.10s %10.10s\n", "time", "student", "supervisor", "opponents");
+            System.out.printf("%5s | %10.10s | %10.10s %10.10s\n", "time", "student", "supervisor", "opponents");
             row.streamTimeSlots().forEach(slot -> {
-                System.out.printf("%3d-%3d | ", slot.getStart(), slot.getEnd());
+                System.out.printf("%5s | ", cfg.dayStart.plusMinutes(slot.getStart()).format(datefmt));
 
                 Student student = Optional.ofNullable(sol.getValue(slot))
                         .map(Ticket::getPerson)
@@ -89,7 +79,7 @@ public class Demo {
 
                     if (student.getThesis() != null) {
                         Thesis thesis = student.getThesis();
-                        System.out.printf("%10.10s", thesis.getSupervisor().getName());
+                        System.out.printf("%10.10s", thesis.getSupervisor().getSurname());
 
                         thesis.getOpponents().stream().forEach((opponent) -> {
                             System.out.printf(" %10.10s", opponent.getSurname());
@@ -104,7 +94,7 @@ public class Demo {
 
             System.out.println("-- END");
             System.out.println();
-        }
+        });
     }
 
     public static void main(String[] args) throws Exception {
@@ -113,11 +103,12 @@ public class Demo {
             System.exit(1);
         }
 
-        Model<Slot, Ticket> model  = new Model();
+        SchModel model  = new SchModel();
 
         try (DataSource ds = new DirectoryDataSource(new File(args[0]))) {
             int students   = ds.getStudents().size();
             int capacity   = 8;
+            int days       = 5;
             int rowsNeeded = (students / capacity) + Math.min(students % capacity, 1);
 
             Configuration.Builder cfgbld = new Configuration.Builder()
@@ -132,13 +123,12 @@ public class Demo {
             }
 
             Configuration       cfg     = cfgbld.value();
-            Agenda              agenda  = new Agenda(cfg);
             DataProperties      props   = getProperties();
-            SlotManager         smngr   = new SlotManager(agenda);
 
-            for (int row = 0; row < rowsNeeded; ++row) {
-                rows.add(new EntryRow(0, smngr, cfg));
-            }
+            for (int row = 0; row < rowsNeeded; ++row)
+                rows.add(new EntryRow(row % days, cfg));
+
+            rows.stream().forEach(model::addEntryRow);
 
             for (EntryRow row : rows) {
                 for (int i = 0; i < Math.min(students, capacity) - 1; ++i) {
@@ -170,9 +160,12 @@ public class Demo {
 
             Solver solver = new Solver(props);
 
-            model.addGlobalConstraint(new UniqueStudentTicketConstraint(smngr));
-            model.addGlobalConstraint(new UniqueCommissionMembersConstraint(smngr));
-            model.addCriterion(new MinimizeBlocksCriterion(agenda));
+            model.addGlobalConstraint(new UniqueStudentTicketConstraint());
+            model.addGlobalConstraint(new UniqueCommissionMembersConstraint());
+            model.addGlobalConstraint(new DefenceTeacherOverlapConstraint());
+
+            MinimizeBlocksCriterion mbcrit = new MinimizeBlocksCriterion();
+            model.addCriterion(mbcrit);
             model.init(solver);
 
             solver.setInitalSolution(model);
@@ -185,28 +178,60 @@ public class Demo {
                 System.err.println(ex);
             }
 
-            Solution lastSolution = solver.lastSolution();          
+            Solution lastSolution = solver.lastSolution();
             lastSolution.restoreBest();
+
+            logger.info(ToolBox.dict2string(lastSolution.getBestInfo(), 2));
             printRows(rows, lastSolution.getAssignment(), cfg);
-            //logger.info("Last solution:" + ToolBox.dict2string(solver.currentSolution().getInfo(), 2));
-            logger.info("Best solution:" + ToolBox.dict2string(solver.currentSolution().getBestInfo(), 2));
-            
+            double totalValueBest = model.getTotalValue(lastSolution.getAssignment());
+            logger.info("Total value: " + totalValueBest);
+
             logger.info("=========================================");
-            logger.info("Block counts for the current solution");
-            Solution dump = solver.lastSolution();
-            logger.info(ToolBox.dict2string(dump.getInfo(), 2));
-            
-            for (Teacher t : ds.getTeachers().values()) {
-                logger.info(t.getSurname() + ": " + agenda.blockCount(t));
-                
+            logger.info("  BLOCK COUNTS                           ");
+            logger.info("=========================================");
+
+            BlockCriterion.BlockContext context = (BlockCriterion.BlockContext)
+                    mbcrit.getContext(lastSolution.getAssignment());
+            Agenda agenda = context.getAgenda();
+
+            Map<Teacher, String[]> blockmap = new HashMap<>();
+
+            ds.getTeachers().values().stream().forEach(t -> {
+                @SuppressWarnings("MismatchedReadAndWriteOfArray")
+                String[] blocks = blockmap.computeIfAbsent(t, (x) -> new String[days]);
+
                 Map<Integer, List<Block>> data = agenda.getBlocks(t);
-                data.entrySet().stream()
-                        .forEach(kv -> {
-                            System.out.println(kv.getKey() + ":");
-                            kv.getValue().stream()
-                                    .forEach(block -> System.out.println("    " + block.getInterval()));
-                        });
-            }
+
+                for (int i = 0; i < days; ++i) {
+                    blocks[i] = data.getOrDefault(i, new ArrayList<>()).stream()
+                            .map(b -> b.getInterval())
+                            .map(Range::toString)
+                            .reduce(new StringBuilder(), (b,s) -> b.append(s), (p,q) -> p.append(q))
+                            .toString();
+                }
+
+            });
+
+            List<String> widths = blockmap.values().stream()
+                    .map(p -> Arrays.stream(p).map(String::length))
+                    .reduce(Stream.generate(() -> 0).limit(days),
+                            (l,r) -> StreamUtils.zipWith(l, r, (a,b) -> Integer.max(a, b))
+                    ).map(p -> "%" + p + "s")
+                    .collect(Collectors.toList());
+
+            System.out.printf("%3s | %10s | DAYS\n", "ID", "NAME");
+            blockmap.entrySet().stream()
+                    .sorted((a,b) -> String.CASE_INSENSITIVE_ORDER.compare(a.getKey().getSurname(), b.getKey().getSurname()))
+                    .forEach(kvp -> {
+                final Teacher  key   = kvp.getKey();
+                final String[] value = kvp.getValue();
+                System.out.printf("%3d | %10.10s |", key.getId(), key.getSurname());
+
+                for (int i = 0; i < value.length; ++i) {
+                    System.out.printf(" " + widths.get(i) + " |", value[i]);
+                }
+                System.out.printf("Σ %2d\n", agenda.blockCount(key));
+            });
         }
     }
 }

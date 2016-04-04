@@ -2,7 +2,9 @@ package cz.muni.fi.scheduler.model;
 
 import cz.muni.fi.scheduler.model.domain.Slot;
 import cz.muni.fi.scheduler.model.domain.Ticket;
+import java.time.LocalTime;
 import org.apache.log4j.Logger;
+import org.cpsolver.ifs.assignment.Assignment;
 
 import org.cpsolver.ifs.solution.Solution;
 import org.cpsolver.ifs.termination.TerminationCondition;
@@ -21,6 +23,7 @@ public class ImprovementTerminalCondition implements TerminationCondition<Slot, 
     private int         counter;
     private double      bestSolution;
     private double      bestIncomplete;
+    private LocalTime   lastPrint;
 
     public ImprovementTerminalCondition(DataProperties properties) {
         maxIterations = properties.getPropertyInt("ImprovementTerminalCondition.maxIterations", 5000);
@@ -28,13 +31,14 @@ public class ImprovementTerminalCondition implements TerminationCondition<Slot, 
         counter        = 0;
         bestSolution   = Double.MAX_VALUE;
         bestIncomplete = Double.MAX_VALUE;
+        lastPrint      = LocalTime.now();
         logger.debug("initialized");
     }
 
     @Override
     public boolean canContinue(Solution<Slot, Ticket> currentSolution) {
-        if (counter > maxIterations) {
-            logger.debug("max iterations reached without improving, stopping");
+        if ((counter > maxIterations) && (Double.compare(bestSolution, Double.MAX_VALUE) < 0)) {
+            logger.info("max iterations reached without improving, stopping");
             return false;
         }
 
@@ -43,17 +47,31 @@ public class ImprovementTerminalCondition implements TerminationCondition<Slot, 
         double value = currentSolution.getModel().getTotalValue(currentSolution.getAssignment());
 
         if (value < bestIncomplete) {
-            logger.info("new best incomplete score of " + String.valueOf(value));
             bestIncomplete = value;
         }
 
         if (currentSolution.isComplete() && (value < bestSolution)) {
-            logger.info("new best complete score of " + String.valueOf(value));
             bestSolution = value;
             counter = 0;
         }
 
-        return true;
+        if (bestSolution < 0.0) {
+            logger.error("bestSolution is negative!");
+        }
+
+        LocalTime now = LocalTime.now();
+        if (lastPrint.plusSeconds(1).isBefore(now)) {
+            logger.info(String.format(
+                    "current %6.2f best %6.2f assigned %3d iteration %d",
+                    Double.min(value, 999.0),         // another hack :D
+                    Double.min(bestSolution, 999.0),
+                    currentSolution.getAssignment().nrAssignedVariables(),
+                    counter
+                ));
+            lastPrint = now;
+        }
+
+        return (bestSolution >= 0.0); // temporary hack :(
     }
 
 }

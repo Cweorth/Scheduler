@@ -1,20 +1,21 @@
 package cz.muni.fi.scheduler.model.neighbourhood;
 
 import cz.muni.fi.scheduler.data.Student;
-import cz.muni.fi.scheduler.data.Teacher;
 import static cz.muni.fi.scheduler.extensions.ValueCheck.*;
+import cz.muni.fi.scheduler.model.Agenda;
+import cz.muni.fi.scheduler.model.SchModel;
+import cz.muni.fi.scheduler.model.context.SchModelContext;
 import cz.muni.fi.scheduler.model.domain.EntryRow;
 import cz.muni.fi.scheduler.model.domain.Slot;
 import cz.muni.fi.scheduler.model.domain.Ticket;
 import cz.muni.fi.scheduler.model.domain.TimeSlot;
+import cz.muni.fi.scheduler.utils.Pair;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.log4j.Logger;
 import org.cpsolver.ifs.assignment.Assignment;
 import org.cpsolver.ifs.heuristics.NeighbourSelection;
-import org.cpsolver.ifs.model.LazySwap;
 import org.cpsolver.ifs.model.Neighbour;
 import org.cpsolver.ifs.model.SimpleNeighbour;
 import org.cpsolver.ifs.solution.Solution;
@@ -28,43 +29,11 @@ import org.cpsolver.ifs.util.ToolBox;
  * The algorithm tries to swap a random teacher in a way that decreases the number
  * of blocks for the given teacher.
  *
- * @author cweorth
  */
 public class TimeSlotSwapInCommission implements NeighbourSelection<Slot, Ticket> {
     private static final Logger logger = Logger.getLogger("TimeSlotSwapInCommission");
 
     private Solver solver;
-
-    private static class TestNeighbour implements Neighbour<Slot, Ticket> {
-        private final LazySwap<Slot, Ticket> lswp;
-
-        public TestNeighbour(Ticket v1, Ticket v2) {
-            logger.debug("created test neighbour");
-
-            lswp = new LazySwap<>(v1, v2);
-            lswp.setAcceptanceCriterion((a,b,c) -> { logger.debug("accept?"); return true; });
-        }
-
-        @Override
-        public void assign(Assignment<Slot, Ticket> assignment, long iteration) {
-            logger.debug("called assign");
-            lswp.assign(assignment, iteration);
-        }
-
-        @Override
-        public double value(Assignment<Slot, Ticket> assignment) {
-            double value = lswp.value(assignment);
-            logger.debug("called value = " + value);
-            return value;
-        }
-
-        @Override
-        public Map<Slot, Ticket> assignments() {
-            Map<Slot, Ticket> assignments = lswp.assignments();
-            logger.debug("called assignments" + ToolBox.dict2string(assignments, 2));
-            return assignments;
-        }
-    }
 
     public TimeSlotSwapInCommission(DataProperties properties)
     { }
@@ -78,92 +47,59 @@ public class TimeSlotSwapInCommission implements NeighbourSelection<Slot, Ticket
 
     @Override
     public Neighbour<Slot, Ticket> selectNeighbour(Solution<Slot, Ticket> solution) {
-        logger.debug("called");
-        Assignment<Slot, Ticket> assignment = solution.getAssignment();
+        final SchModel                 model      = (SchModel) solution.getModel();
+        final Assignment<Slot, Ticket> assignment = solution.getAssignment();
+        final SchModelContext          context    = model.getContext(assignment);
+        final Agenda                   agenda     = context.getAgenda();
 
-        Slot fst = ToolBox.random(
-                assignment.assignedVariables().stream()
-                .filter(var -> var.getAssignment(assignment).isTimeSlotTicket())
-                .collect(Collectors.toList())
-        );
+        List<EntryRow> collect = context.entryRows().collect(Collectors.toList());
+        EntryRow row = ToolBox.random(collect);
 
-        if (fst == null) {
-            logger.debug("no variables are assigned yet");
+        if (row == null) {
+            logger.error("null EntryRow selected");
             return null;
         }
 
-        Student student = (Student) assignment.getValue(fst).getPerson();
+        List<Pair<TimeSlot, TimeSlot>> validmoves = new ArrayList<>();
 
-        if (!student.hasThesis()) {
-            logger.debug("oops, this student does not have a thesis");
+        row.streamTimeSlots().forEach(slot -> {
+            final Ticket ticket = assignment.getValue(slot);
+
+            if (ticket == null)
+                return;
+
+            Student student = (Student) ticket.getPerson();
+            if (!student.hasThesis())
+                return;
+
+            row.streamTimeSlots()
+                    .filter(refslot -> refslot.compareTo(slot) > 0)
+                    .forEach(refslot -> {
+                        int expected = student.getThesis().getTeachers().stream()
+                                .mapToInt(t -> agenda.analyzeTimeSlotAssign(t, refslot))
+                                .sum();
+
+                        if (expected > 0) {
+                            validmoves.add(Pair.of(slot, refslot));
+                        }
+                    });
+        });
+
+        if (validmoves.isEmpty()) {
+            logger.debug("no valid moves for row " + row.getId());
             return null;
         }
 
-        Teacher        teacher = ToolBox.random(student.getThesis().getTeachers());
-        EntryRow       row     = fst.getParent();
-        List<TimeSlot> slots   = row.streamTimeSlots().collect(Collectors.toList());
-        List<TimeSlot> improv  = new ArrayList<>();
+        Pair<TimeSlot, TimeSlot> move = ToolBox.random(validmoves);
+        Ticket oldt = assignment.getValue(move.first());
+        Ticket newt = assignment.getValue(move.second());
 
-        // bitmaps of teacher presence
-        int bitmap[] = new int[slots.size()];
-
-        // comute bitmap for the teacher
-        for (int ix = 0; ix < slots.size(); ++ix) {
-            Slot slot = slots.get(ix);
-
-            if (slot == fst) {
-                bitmap[ix] = 0;
-                continue;
-            }
-
-            Ticket  ticket = assignment.getValue(slots.get(ix));
-            if (ticket == null) {
-                bitmap[ix] = 0;
-                continue;
-            }
-
-            Student other  = (Student) ticket.getPerson();
-
-            if (other.hasThesis() && other.getThesis().hasTeacher(teacher)) {
-                bitmap[ix] = 1;
-            }
-        }
-
-        // compute preference array
-        for (int ix = 0; ix < slots.size(); ++ix) {
-            if (slots.get(ix).equals(fst)) {
-                continue;
-            }
-
-            int l = ix ==                0 ? 0 : bitmap[ix - 1];
-            int r = ix == slots.size() - 1 ? 0 : bitmap[ix + 1];
-
-            for (int p = 0; p < l + r; ++p) {
-                improv.add(slots.get(ix));
-            }
-        }
-
-        Slot snd = ToolBox.random(improv);
-
-        if (snd == null) {
-            logger.debug("could not find a better timeslot");
-            return null;
-        }
-
-        logger.debug("found a better timeslot");
-
-        //LazySwap lazySwap = new LazySwap(assignment.getValue(fst), assignment.getValue(snd));
-        //lazySwap.setAcceptanceCriterion((a, n, v) -> { logger.info("called criterion"); return true; } );
-        //return lazySwap;
-
-        Neighbour neighbour;
-        if (assignment.getValue(snd) == null) {
-            neighbour = new SimpleNeighbour(snd, assignment.getValue(fst), null);
-        } else {
-            neighbour = new TestNeighbour(assignment.getValue(fst), assignment.getValue(snd));
-        }
-
-        return neighbour;
+        return newt == null
+                ? new SimpleNeighbour<>(
+                        move.second(),
+                        new Ticket(move.second(), oldt.getPerson())
+                  )
+                : new TimeSlotSwapNeighbour(oldt, newt);
     }
 
 }

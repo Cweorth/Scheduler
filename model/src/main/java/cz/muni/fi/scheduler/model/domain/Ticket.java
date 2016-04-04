@@ -56,7 +56,7 @@ public class Ticket extends Value<Slot, Ticket> {
 
         final Ticket other = (Ticket) obj;
 
-        return person.equals(other.person);
+        return variable().equals(other.variable()) && person.equals(other.person);
     }
 
     @Override
