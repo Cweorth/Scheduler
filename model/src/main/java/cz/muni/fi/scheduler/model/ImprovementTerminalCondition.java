@@ -71,6 +71,9 @@ public class ImprovementTerminalCondition implements TerminationCondition<Slot, 
             lastPrint = now;
         }
 
+        //if (value < 100.0)
+        //    throw new RuntimeException("Current value is negative.");
+
         return (bestSolution >= 0.0); // temporary hack :(
     }
 

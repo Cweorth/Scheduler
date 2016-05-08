@@ -1,6 +1,5 @@
 package cz.muni.fi.scheduler.model.constraints;
 
-import cz.muni.fi.scheduler.data.Teacher;
 import cz.muni.fi.scheduler.model.SchModel;
 import cz.muni.fi.scheduler.model.context.SchModelContext;
 import cz.muni.fi.scheduler.model.domain.Slot;

@@ -1,5 +1,6 @@
 package cz.muni.fi.scheduler.model.solver;
 
+import cz.muni.fi.scheduler.data.Availability;
 import cz.muni.fi.scheduler.data.Commission;
 import cz.muni.fi.scheduler.data.Student;
 import cz.muni.fi.scheduler.data.Teacher;
@@ -13,11 +14,14 @@ import cz.muni.fi.scheduler.model.SchModel;
 import cz.muni.fi.scheduler.model.constraints.DefenceTeacherOverlapConstraint;
 import cz.muni.fi.scheduler.model.constraints.UniqueCommissionMembersConstraint;
 import cz.muni.fi.scheduler.model.constraints.UniqueStudentTicketConstraint;
+import cz.muni.fi.scheduler.model.context.SchModelContext;
 import cz.muni.fi.scheduler.model.criteria.BlockCriterion;
 import cz.muni.fi.scheduler.model.criteria.MinimizeBlocksCriterion;
 import cz.muni.fi.scheduler.model.domain.EntryRow;
 import cz.muni.fi.scheduler.model.domain.Slot;
 import cz.muni.fi.scheduler.model.domain.Ticket;
+import cz.muni.fi.scheduler.utils.IntCounter;
+import cz.muni.fi.scheduler.utils.Pair;
 import cz.muni.fi.scheduler.utils.Range;
 import java.io.File;
 import java.io.IOException;
@@ -30,7 +34,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.log4j.Logger;
@@ -97,6 +104,10 @@ public class Demo {
         });
     }
 
+    private static void dumpAvailability(Availability av) {
+        System.out.print("LL");
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
             System.err.println("Expected directory name.");
@@ -111,6 +122,8 @@ public class Demo {
             int days       = 5;
             int rowsNeeded = (students / capacity) + Math.min(students % capacity, 1);
 
+            Availability avail = ds.getAvailability();
+            dumpAvailability(avail);
             Configuration.Builder cfgbld = new Configuration.Builder()
                 .setDayStart(LocalTime.of(8, 00))
                 .setFullExamLength(30)
@@ -130,7 +143,10 @@ public class Demo {
 
             rows.stream().forEach(model::addEntryRow);
 
+            logger.info("initializing rows");
             for (EntryRow row : rows) {
+                LocalDate date = cfg.dates.get(row.getDay());
+
                 for (int i = 0; i < Math.min(students, capacity) - 1; ++i) {
                     row.extendBack();
                 }
@@ -141,7 +157,10 @@ public class Demo {
 
                 row.streamCommissarySlots().forEach(s -> {
                     try {
-                        s.setCommissaries(ds.getTeachers().values());
+                        s.setCommissaries(ds.getTeachers().values().stream()
+                            .filter(teacher -> avail.isAvailable(teacher, date, cfg.dayStart, cfg.dayStart.plusMinutes(row.getEnd() - row.getStart())))
+                            .collect(Collectors.toList())
+                        );
                     } catch (IOException ex) {
                         logger.error(ex);
                         System.exit(2);
@@ -149,14 +168,27 @@ public class Demo {
                 });
 
                 row.streamTimeSlots().forEach(s -> {
+                    LocalTime start = cfg.dayStart.plusMinutes(s.getStart());
+                    LocalTime end   = cfg.dayStart.plusMinutes(s.getEnd());
+
                     try {
-                        s.setStudents(ds.getStudents().values());
+                        List<Student> possible = ds.getStudents().values().stream()
+                                .filter(student -> !student.hasThesis()
+                                        || student.getThesis().getTeachers().stream()
+                                                .allMatch(t -> avail.isAvailable(t, date, start, end))
+                                )
+                                .collect(Collectors.toList());
+
+                        logger.debug("TS " + s.getId() + " (ER " + s.getParent().getId() + ": " + s.getParent().getDay() + "; S " + s.getStart() +
+                                " has " + possible.size() + " values");
+                        s.setStudents(possible);
                     } catch (IOException ex) {
                         logger.error(ex);
                         System.exit(2);
                     }
                 });
             }
+            logger.info("rows initialized, solving");
 
             Solver solver = new Solver(props);
 
@@ -190,48 +222,126 @@ public class Demo {
             logger.info("  BLOCK COUNTS                           ");
             logger.info("=========================================");
 
+            SchModelContext modelctxt = model.getContext(lastSolution.getAssignment());
+
             BlockCriterion.BlockContext context = (BlockCriterion.BlockContext)
                     mbcrit.getContext(lastSolution.getAssignment());
-            Agenda agenda = context.getAgenda();
+            Agenda agenda = modelctxt.getAgenda();
 
             Map<Teacher, String[]> blockmap = new HashMap<>();
+            Map<Teacher, IntCounter>  scmmap   = new HashMap<>();
+
+            final DateTimeFormatter datefmt = DateTimeFormatter.ofPattern("HH:mm");
+            final int fields = Math.min(days, rowsNeeded);
+            final Assignment<Slot, Ticket> assignment = lastSolution.getAssignment();
+
+            // compute scmmap
+            modelctxt.entryRows().forEach(row -> {
+                Set<Teacher> members = row.streamCommissarySlots()
+                    .map(assignment::getValue)
+                    .filter(Objects::nonNull)
+                    .map(ticket -> (Teacher) ticket.getPerson())
+                    .collect(Collectors.toSet());
+
+                row.streamTimeSlots()
+                    .map(assignment::getValue)
+                    .filter(Objects::nonNull)
+                    .map(ticket -> (Student) ticket.getPerson())
+                    .filter(Student::hasThesis)
+                    .map(Student::getThesis)
+                    .flatMap(thesis -> thesis.getTeachers().stream())
+                    .filter(teacher -> !members.contains(teacher))
+                    .forEach(teacher -> scmmap.computeIfAbsent(teacher, t -> new IntCounter(0)).inc());
+            });
+
+            Function<Integer,String> fmttime = (num) -> cfg.dayStart.plusMinutes((long) num).format(datefmt);
 
             ds.getTeachers().values().stream().forEach(t -> {
                 @SuppressWarnings("MismatchedReadAndWriteOfArray")
-                String[] blocks = blockmap.computeIfAbsent(t, (x) -> new String[days]);
+                String[] blocks = blockmap.computeIfAbsent(t, (x) -> new String[fields]);
 
                 Map<Integer, List<Block>> data = agenda.getBlocks(t);
 
-                for (int i = 0; i < days; ++i) {
+                for (int i = 0; i < fields; ++i) {
                     blocks[i] = data.getOrDefault(i, new ArrayList<>()).stream()
-                            .map(b -> b.getInterval())
-                            .map(Range::toString)
+                            .map(block -> {
+                                Range<Integer> range = block.getInterval();
+                                String min  = fmttime.apply(range.getMin());
+                                String max  = fmttime.apply(range.getMax());
+
+                                return block.isSpanning()
+                                        ? ("<" + min + "--" + max + ">")
+                                        : ("[" + min + "--" + max + "]");
+                            })
                             .reduce(new StringBuilder(), (b,s) -> b.append(s), (p,q) -> p.append(q))
                             .toString();
                 }
-
             });
 
             List<String> widths = blockmap.values().stream()
                     .map(p -> Arrays.stream(p).map(String::length))
-                    .reduce(Stream.generate(() -> 0).limit(days),
+                    .reduce(Stream.generate(() -> 0).limit(fields),
                             (l,r) -> StreamUtils.zipWith(l, r, (a,b) -> Integer.max(a, b))
-                    ).map(p -> "%" + p + "s")
+                    ).map(p -> "%" + (p > 0 ? String.valueOf(p) : "") + "s")
                     .collect(Collectors.toList());
 
-            System.out.printf("%3s | %10s | DAYS\n", "ID", "NAME");
-            blockmap.entrySet().stream()
-                    .sorted((a,b) -> String.CASE_INSENSITIVE_ORDER.compare(a.getKey().getSurname(), b.getKey().getSurname()))
-                    .forEach(kvp -> {
-                final Teacher  key   = kvp.getKey();
-                final String[] value = kvp.getValue();
-                System.out.printf("%3d | %10.10s |", key.getId(), key.getSurname());
+            Map<Teacher, Long> studentCounts;
+            try {
+                studentCounts = ds.getTeachers().values().stream()
+                        .map(teacher -> {
+                            long count;
+                            try {
+                                // I <3 Java!
+                                count = ds.getStudents().values().stream()
+                                        .filter(Student::hasThesis)
+                                        .map(Student::getThesis)
+                                        .filter(thesis -> thesis.hasTeacher(teacher))
+                                        .count();
+                            } catch (IOException ex) {
+                                count = 999L;
+                            }
+                            return Pair.of(teacher, count);
+                        })
+                        .collect(Collectors.toMap(p -> p.first(), p -> p.second()));
+            } catch (IOException ex) {
+                studentCounts = new HashMap<>();
+            }
 
-                for (int i = 0; i < value.length; ++i) {
-                    System.out.printf(" " + widths.get(i) + " |", value[i]);
-                }
-                System.out.printf("Σ %2d\n", agenda.blockCount(key));
-            });
+            final Map<Teacher, Long> studentCountsC = studentCounts;
+            System.out.printf("%3s | %10s | BLK | COM | STU | SCM | DAYS\n", "ID", "NAME");
+            blockmap.entrySet().stream()
+                    //.sorted((a,b) -> String.CASE_INSENSITIVE_ORDER.compare(a.getKey().getSurname(), b.getKey().getSurname()))
+                    .sorted((a, b) -> {
+                        int diff = -Long.compare(agenda.blockCount(a.getKey()), agenda.blockCount(b.getKey()));
+                        if (diff == 0)
+                            diff = -Long.compare(modelctxt.memberSlots(a.getKey()).count(),
+                                                 modelctxt.memberSlots(b.getKey()).count());
+                        if (diff == 0)
+                            diff = -Long.compare(studentCountsC.getOrDefault(a.getKey(), 0L),
+                                                 studentCountsC.getOrDefault(b.getKey(), 0L));
+                        if (diff == 0)
+                            diff = String.CASE_INSENSITIVE_ORDER.compare(a.getKey().getSurname(), b.getKey().getSurname());
+                        return diff;
+                    })
+                    .forEach(kvp -> {
+                        final Teacher  key   = kvp.getKey();
+                        final String[] value = kvp.getValue();
+                        final long      COM   = modelctxt.memberSlots(key).count();
+                        System.out.printf("%3d | %10.10s | %3d | %3d | %3d | %3d |",
+                                key.getId(),
+                                key.getSurname(),
+                                agenda.blockCount(key),
+                                COM,
+                                studentCountsC.getOrDefault(key, 0L),
+                                COM == 0 ? 0 : scmmap.getOrDefault(key, new IntCounter()).get()
+                        );
+
+                        for (int i = 0; i < value.length; ++i) {
+                            System.out.printf(" " + widths.get(i) + " |", value[i]);
+                        }
+
+                        System.out.println("");
+                    });
         }
     }
 }

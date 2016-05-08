@@ -34,19 +34,32 @@ public class SchModelContext implements AssignmentConstraintContext<Slot, Ticket
         day2erow = new HashMap<>();
     }
 
-    public Stream<TimeSlot> studentSlots(Ticket ticket) {
-        final Student student = (Student) ticket.getPerson();
+    public Stream<TimeSlot> studentSlots(Student student) {
         return stud2ts.getOrDefault(student, new HashSet<>()).stream();
     }
 
-    public Stream<TimeSlot> defenceSlots(Ticket ticket) {
-        final Teacher teacher = (Teacher) ticket.getPerson();
+    public Stream<TimeSlot> studentSlots(Ticket ticket) {
+        return studentSlots((Student) ticket.getPerson());
+    }
+
+    public Stream<TimeSlot> defenceSlots(Teacher teacher) {
         return tchr2ts.getOrDefault(teacher, new HashSet<>()).stream();
     }
 
-    public Stream<MemberSlot> memberSlots(Ticket ticket) {
-        final Teacher teacher = (Teacher) ticket.getPerson();
+    public Stream<TimeSlot> defenceSlots(Ticket ticket) {
+        return defenceSlots((Teacher) ticket.getPerson());
+    }
+
+    public Stream<MemberSlot> memberSlots(Teacher teacher) {
         return tchr2ms.getOrDefault(teacher, new HashSet<>()).stream();
+    }
+
+    public Stream<MemberSlot> memberSlots(Ticket ticket) {
+        return memberSlots((Teacher) ticket.getPerson());
+    }
+
+    public Stream<Slot> teacherSlots(Teacher teacher) {
+        return Stream.concat(memberSlots(teacher), defenceSlots(teacher));
     }
 
     public Stream<Slot> teacherSlots(Ticket ticket) {
@@ -91,6 +104,7 @@ public class SchModelContext implements AssignmentConstraintContext<Slot, Ticket
         final MemberSlot slot    = (MemberSlot) ticket.variable();
 
         tchr2ms.computeIfAbsent(teacher, (t) -> new HashSet<>()).add(slot);
+        agenda.markMemberSlot(teacher, slot);
     }
 
     private void unassignedTimeSlot(Ticket ticket) {
@@ -113,6 +127,7 @@ public class SchModelContext implements AssignmentConstraintContext<Slot, Ticket
         final MemberSlot slot    = (MemberSlot) ticket.variable();
 
         tchr2ms.computeIfAbsent(teacher, (t) -> new HashSet<>()).remove(slot);
+        agenda.unmarkMemberSlot(teacher, slot);
     }
 
     @Override

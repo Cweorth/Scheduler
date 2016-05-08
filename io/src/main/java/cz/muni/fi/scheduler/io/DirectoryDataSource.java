@@ -1,8 +1,10 @@
 package cz.muni.fi.scheduler.io;
 
+import cz.muni.fi.scheduler.data.Availability;
 import static cz.muni.fi.scheduler.extensions.ValueCheck.*;
 
 import cz.muni.fi.scheduler.data.Field;
+import cz.muni.fi.scheduler.data.Person;
 import cz.muni.fi.scheduler.data.Student;
 import cz.muni.fi.scheduler.data.Teacher;
 import cz.muni.fi.scheduler.data.Thesis;
@@ -13,6 +15,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.log4j.Logger;
 
@@ -42,6 +46,9 @@ public class DirectoryDataSource implements DataSource, AutoCloseable {
     private Map<Long, Thesis>   memTheses;
     private Map<Long, Student>  memStudents;
 
+    private Map<Long, Person>   memPeople;
+    private Availability        memAvailability;
+
     static {
         logger.debug("static initializer");
         csvreader = new CSVDataReader();
@@ -62,12 +69,22 @@ public class DirectoryDataSource implements DataSource, AutoCloseable {
         try (FileInputStream fis = new FileInputStream(fields)) {
             data = reader.apply(fis);
         } catch (Exception ex) {
-            logger.error("failed to read fields from a CSV file");
+            logger.error("failed to read data from " + fileName);
             logger.debug(ex);
             throw ex;
         }
 
         return data;
+    }
+
+    private Map<Long, Person> getPeople() throws IOException {
+        if (memPeople == null) {
+            memPeople = Stream.concat(getTeachers().values().stream(),
+                                      getStudents().values().stream())
+                    .collect(Collectors.toMap(p -> p.getId(), Function.identity()));
+        }
+
+        return memPeople;
     }
 
     public DirectoryDataSource(File source) throws IOException {
@@ -142,6 +159,33 @@ public class DirectoryDataSource implements DataSource, AutoCloseable {
         }
 
         return memStudents;
+    }
+
+    @Override
+    public Availability getAvailability() throws IOException {
+        if (memAvailability != null)
+            return memAvailability;
+
+        memAvailability = new Availability();
+        File file = new File(source, "availability.csv");
+        logger.debug("probing file '" + file.getAbsolutePath() + "'");
+
+        if (!file.exists()) {
+            logger.warn("File 'availability.csv' does not exist (but I can live without it)");
+            return memAvailability;
+        }
+
+        logger.debug("reading file");
+
+        try (FileInputStream fis = new FileInputStream(file)) {
+            csvreader.readAvailability(fis, getPeople(), memAvailability);
+        } catch (Exception ex) {
+            logger.error("failed to read availability from a CSV file availability.csv");
+            logger.debug(ex);
+            throw ex;
+        }
+
+        return memAvailability;
     }
 
     @Override

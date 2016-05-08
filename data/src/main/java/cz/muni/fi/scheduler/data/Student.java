@@ -75,8 +75,8 @@ public class Student extends Person {
     @Override
     public String toString() {
         return String.format(
-                "Student { person: %s, field: %s, repetition: %s, level: %s, thesis: %s }",
-                super.toString(), field, repetition, level, thesis
+                "Student { person: %s, field: %s, repetition: %s, level: %s, thesis: %d }",
+                super.toString(), field.getCode(), repetition, level, thesis.getId()
         );
     }
 }

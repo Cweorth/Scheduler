@@ -1,13 +1,14 @@
 package cz.muni.fi.scheduler.model.criteria;
 
 import cz.muni.fi.scheduler.data.Student;
+import cz.muni.fi.scheduler.data.Teacher;
 import cz.muni.fi.scheduler.data.Thesis;
 import cz.muni.fi.scheduler.model.Agenda;
+import cz.muni.fi.scheduler.model.domain.MemberSlot;
 import cz.muni.fi.scheduler.model.domain.Slot;
 import cz.muni.fi.scheduler.model.domain.Ticket;
 import cz.muni.fi.scheduler.model.domain.TimeSlot;
 import cz.muni.fi.scheduler.utils.Pair;
-import java.util.HashSet;
 import java.util.Set;
 import org.apache.log4j.Logger;
 import org.cpsolver.ifs.assignment.Assignment;
@@ -23,50 +24,70 @@ import org.cpsolver.ifs.assignment.Assignment;
 public class MinimizeBlocksCriterion extends BlockCriterion {
     private final static Logger logger = Logger.getLogger("MinimizeBlocksCriterion");
 
+    private final BlockWeightFunction[] weightFunctions;
+    private final BlockWeightFunction   wf;
+
     public MinimizeBlocksCriterion() {
-        //this.setValueUpdateType(ValueUpdateType.AfterUnassignedBeforeAssigned);
+        this.setValueUpdateType(ValueUpdateType.AfterUnassignedBeforeAssigned);
+
+        weightFunctions = new BlockWeightFunction[2];
+        weightFunctions[0] = (long c, long d) -> d;
+        weightFunctions[1] = (long c, long d) -> d * (2 * c + d);
+
+        wf = weightFunctions[0];
+    }
+
+    public double getCommissaryAssignValue(Agenda agenda,
+            Assignment<Slot, Ticket> assignment, MemberSlot slot, Teacher commissary) {
+        return agenda.analyzeMemberSlotAssign(commissary, slot);
+    }
+
+    public double getDefenceAssignValue(Agenda agenda, Assignment<Slot, Ticket> assignment,
+            TimeSlot slot, Student student) {
+        if (!student.hasThesis())
+            return 0.0;
+
+        return student.getThesis().getTeachers().stream()
+            .mapToDouble(teacher ->
+                wf.value(agenda.blockCount(teacher), agenda.analyzeTimeSlotAssign(teacher, slot))
+            ).sum();
+    }
+
+    public double evalConflicts(Agenda agenda, Assignment<Slot, Ticket> assignment, Set<Ticket> conflicts) {
+        double p = 0.0;
+
+        for (Ticket ticket : conflicts) {
+            if (ticket.isTimeSlotTicket()) {
+                Student student = (Student) ticket.getPerson();
+
+                if (!student.hasThesis())
+                    continue;
+
+                p += student.getThesis().getTeachers().stream()
+                    .mapToDouble(teacher -> agenda.analyzeTimeSlotUnassign(teacher, (TimeSlot) ticket.variable()))
+                    .sum();
+            } else {
+                Teacher teacher = (Teacher) ticket.getPerson();
+                p += agenda.analyzeMemberSlotUnassign(teacher, (MemberSlot) ticket.variable());
+            }
+        }
+
+        return p;
     }
 
     @Override
     public double getValue(Assignment<Slot, Ticket> assignment, Ticket value, Set<Ticket> conflicts) {
         BlockContext context = (BlockContext) getContext(assignment);
-        Agenda       agenda  = context.getAgenda();
+        Agenda       agenda  = context.agenda(assignment);
 
-        if (!value.isTimeSlotTicket())
-            return 0;
+        double vdiff = value.isTimeSlotTicket()
+                ? getDefenceAssignValue(agenda, assignment, (TimeSlot) value.variable(), (Student) value.getPerson())
+                : getCommissaryAssignValue(agenda, assignment, (MemberSlot) value.variable(), (Teacher) value.getPerson());
 
-        Student student = (Student) value.getPerson();
-        if (!student.hasThesis())
-            return 0;
+        if (conflicts != null && !conflicts.isEmpty())
+            vdiff += evalConflicts(agenda, assignment, conflicts);
 
-        Thesis thesis = student.getThesis();
-
-        int diffblocks = thesis.getTeachers().stream()
-                .mapToInt(teacher -> agenda.analyzeTimeSlotAssign(teacher, (TimeSlot) value.variable()))
-                .sum();
-
-        //--  FIXME  -----------------------------------------------------------
-        Ticket current = value.variable().getAssignment(assignment);
-        if ((current != null) && !value.equals(current)) {
-            if (conflicts == null)
-                conflicts = new HashSet<>();
-            conflicts.add(current);
-        }
-
-        if (conflicts != null) {
-            diffblocks += conflicts.stream()
-                    .filter(Ticket::isTimeSlotTicket)
-                    .map(ticket -> Pair.of(ticket, (Student) ticket.getPerson()))
-                    .filter(p -> p.second().hasThesis())
-                    .mapToInt(p -> {
-                        return p.second().getThesis().getTeachers().stream()
-                                .mapToInt(t -> agenda.analyzeTimeSlotUnassign(t, (TimeSlot) p.first().variable()))
-                                .sum();
-                    }).sum();
-        }
-        //--  END FIXME  -------------------------------------------------------
-
-        return diffblocks;
+        return vdiff;
     }
 
 }

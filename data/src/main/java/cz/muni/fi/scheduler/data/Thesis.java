@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Thesis entity.
@@ -90,9 +91,11 @@ public class Thesis {
 
     @Override
     public String toString() {
+        List<Long> opponentIds = opponents.stream().map(Teacher::getId).collect(Collectors.toList());
+
         return String.format(
-                "Thesis { id: %d, name: \"%s\", supervisor: %s, opponents: [ %s ] }",
-                id, name, supervisor, opponents
+                "Thesis { id: %d, name: \"%s\", supervisor: %d, opponents: [ %s ] }",
+                id, name, supervisor.getId(), opponentIds
         );
     }
 

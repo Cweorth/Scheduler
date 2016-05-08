@@ -25,6 +25,7 @@ public class Block implements Comparable<Block> {
     private final TimeSlot  first;
     private final TimeSlot  last;
     private final Range<Integer>    interval;
+    private boolean   spanning;
 
     private final SortedSet<TimeSlot> slots;
 
@@ -44,14 +45,15 @@ public class Block implements Comparable<Block> {
         });
     }
 
-    private Block(TimeSlot first, TimeSlot last, SortedSet<TimeSlot> slots) {
+    private Block(boolean spanning, TimeSlot first, TimeSlot last, SortedSet<TimeSlot> slots) {
         this.day = first.getParent().getDay();
 
-        this.first = first;
-        this.last  = last;
-        this.slots = slots;
+        this.first      = first;
+        this.last       = last;
+        this.slots      = slots;
+        this.spanning   = spanning;
 
-        this.interval = new Range<>(first.getStart(), last.getEnd());
+        this.interval   = new Range<>(first.getStart(), last.getEnd());
     }
 
     private static SortedSet<TimeSlot> singleton(TimeSlot slot) {
@@ -61,7 +63,11 @@ public class Block implements Comparable<Block> {
     }
 
     public Block(TimeSlot slot) {
-        this(requireNonNull(slot, "slot"), slot, singleton(slot));
+        this(false, requireNonNull(slot, "slot"), slot, singleton(slot));
+    }
+
+    public Block(TimeSlot slot, boolean spanning) {
+        this(spanning, requireNonNull(slot, "slot"), slot, singleton(slot));
     }
 
     public boolean canJoin(Block other) {
@@ -82,7 +88,7 @@ public class Block implements Comparable<Block> {
 
         SortedSet<TimeSlot> nslots = new TreeSet<>(slots);
         nslots.addAll(other.slots);
-        return new Block(newFirst, newLast, nslots);
+        return new Block((this.spanning || other.spanning), newFirst, newLast, nslots);
     }
 
     public List<Block> split(TimeSlot slot) {
@@ -111,7 +117,7 @@ public class Block implements Comparable<Block> {
                     nlast = ns;
             }
 
-            nblocks.add(new Block(nfirst, nlast, nslots));
+            nblocks.add(new Block(false, nfirst, nlast, nslots));
         }
 
         return nblocks;
@@ -145,6 +151,8 @@ public class Block implements Comparable<Block> {
     public int      getDay()   { return day;   }
     public TimeSlot getFirst() { return first; }
     public TimeSlot getLast()  { return last;  }
+
+    public boolean  isSpanning() { return spanning; }
 
     public Set<TimeSlot>  getSlots()    { return Collections.unmodifiableSet(slots); }
     public Range<Integer> getInterval() { return interval; }

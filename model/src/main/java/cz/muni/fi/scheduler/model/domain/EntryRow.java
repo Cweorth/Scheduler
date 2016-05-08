@@ -4,6 +4,7 @@ import static cz.muni.fi.scheduler.extensions.ValueCheck.*;
 
 import cz.muni.fi.scheduler.data.Commission;
 import cz.muni.fi.scheduler.data.Teacher;
+import cz.muni.fi.scheduler.model.Block;
 import cz.muni.fi.scheduler.model.Configuration;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ public class EntryRow {
     private final MemberSlot       chairman;
     private final List<MemberSlot> members;
     private final List<TimeSlot>   timeslots;
+    private       Block            rowblock;
 
     public EntryRow(int day, Configuration config) {
         this.config = requireNonNull(config,  "config");
@@ -44,12 +46,22 @@ public class EntryRow {
         chairman  = new MemberSlot(this);
         members   = Stream.generate(() -> new MemberSlot(this)).limit(2).collect(Collectors.toList());
         timeslots = new LinkedList<>(Arrays.asList(new TimeSlot(0, config.fullExamLength, this)));
+        rowblock  = new Block(timeslots.get(0), true);
     }
 
-    public long getId()    { return id;  }
-    public int  getDay()   { return day; }
-    public int  getStart() { return timeslots.get(0).getStart();                  }
-    public int  getEnd()   { return timeslots.get(timeslots.size() - 1).getEnd(); }
+    public long  getId()    { return id;  }
+    public int   getDay()   { return day; }
+    public int   getStart() { return timeslots.get(0).getStart();                  }
+    public int   getEnd()   { return timeslots.get(timeslots.size() - 1).getEnd(); }
+    public Block asBlock()  { return rowblock; }
+
+    public TimeSlot     getSlot(int index) {
+        return timeslots.get(index);
+    }
+
+    public MemberSlot   getMemberSlot(int index) {
+        return index == 0 ? chairman : members.get(index - 1);
+    }
 
     public Stream<TimeSlot>   streamTimeSlots()       { return timeslots.stream(); }
     public Stream<MemberSlot> streamMemberSlots()     { return members.stream();   }
@@ -96,9 +108,11 @@ public class EntryRow {
     public void extendBack() {
         if (timeslots.isEmpty()) {
             timeslots.add(new TimeSlot(0, config.fullExamLength, this));
+            rowblock = new Block(timeslots.get(0), true);
         } else {
             final TimeSlot last = timeslots.get(timeslots.size() - 1);
             timeslots.add(new TimeSlot(last.getEnd(), last.getLength(), this));
+            rowblock = rowblock.join(new Block(timeslots.get(timeslots.size() - 1)));
         }
     }
 

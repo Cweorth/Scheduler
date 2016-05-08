@@ -16,6 +16,7 @@ public class SchModel extends ModelWithContext<Slot, Ticket, SchModelContext>{
 
     public SchModel() {
         entryRows = new ArrayList<>();
+        setContextUpdateType(ContextUpdateType.AfterUnassignedAfterAssigned);
     }
 
     public void addEntryRow(EntryRow row) {
@@ -31,7 +32,8 @@ public class SchModel extends ModelWithContext<Slot, Ticket, SchModelContext>{
 
     @Override
     public double getTotalValue(Assignment<Slot, Ticket> assignment) {
-        return getCriteria().stream().mapToDouble((c) -> c.getValue(assignment)).sum();
+        //return getCriteria().stream().mapToDouble((c) -> c.getValue(assignment)).sum();
+        return getContext(assignment).getAgenda().blockSum();
     }
 
 }
